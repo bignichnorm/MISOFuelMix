@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MISOConsoleApp/MISOQueryingApp.csproj" />
+  <Project Path="MISOQueryingApp.Tests/MISOQueryingApp.Tests.csproj" Id="c7eaf11b-e3b9-4aaf-82d1-f05f121939b2" />
+</Solution>
