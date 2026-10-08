@@ -19,7 +19,7 @@ stores them in SQL Server, and exposes the stored data through a read-only HTTP 
 - .NET 10
 - ASP.NET Core
 - Entity Framework Core 10
-- SQL Server
+- SQL Server (Docker)
 - xUnit, Moq, FluentAssertions
 
 ## Project structure
@@ -39,41 +39,74 @@ QueryMISO/
 ## Prerequisites
 
 - .NET 10 SDK
-- SQL Server 2019 or later, or an accessible SQL Server-compatible instance
+- Docker Desktop (the included SQL Server container removes the need to install SQL Server locally)
 - Network access to `https://public-api.misoenergy.org`
 
-The application currently uses SQL Server in `Program.cs`. The test project uses SQLite in-memory databases for persistence tests.
+The application uses SQL Server through `Program.cs`. SQL Server does not need to be installed on the host when using the included Docker Compose deployment.
+An existing SQL Server 2019 or later instance can still be used instead. The test project uses SQLite in-memory databases for persistence tests.
 
 ## Configuration
 
-Set the `ConnectionStrings:Database` value before starting the application. The value can be supplied 
-through `MISOConsoleApp/appsettings.json`, user secrets, an environment variable, or another standard ASP.NET Core configuration provider.
+Set the `ConnectionStrings:Database` value before starting the application. The value can be supplied through `MISOConsoleApp/appsettings.json`,
+user secrets, an environment variable, or another standard ASP.NET Core configuration provider.
 
 Example connection string:
 
 ```json
 {
   "ConnectionStrings": {
-    "Database": "Server=localhost;Database=MisoFuelMix;Trusted_Connection=True;TrustServerCertificate=True"
+    "Database": "Server=localhost,1433;Database=MisoFuelMix;User Id=sa;Password=your-password;TrustServerCertificate=True"
   }
 }
 ```
 
-For a SQL Server container or SQL login, use the corresponding SQL Server connection string, for example:
+## Use the included SQL Server container
 
-```text
-Server=localhost,1433;Database=MisoFuelMix;User Id=sa;Password=<password>;TrustServerCertificate=True
+The repository includes a database-only Docker Compose deployment. The application continues to run with the normal .NET workflow,
+while SQL Server runs in Docker and stores its data in the named `miso-sqlserver-data` volume.
+
+From the repository root, copy the example environment file to `.env`. Docker Compose reads this file automatically,
+and it supplies the SQL Server password and host port without putting those values in the Docker Compose file:
+```powershell
+Copy-Item .\.env.example .\.env
+```
+
+In .env, set `MSSQL_SA_PASSWORD` to the password the database will use and MSSQL_PORT to the port on which the database will listen.
+
+Start Docker using the Docker Compose command:
+```powershell
+docker compose --env-file .\.env up -d sqlserver
+```
+
+Wait until the `sqlserver` service reports `healthy` before applying the migration:
+```powershell
+docker compose --env-file .\.env ps
+```
+
+Set the connection string for the current PowerShell session. Replace the password below with the value of `MSSQL_SA_PASSWORD` from `.env`:
+
+```powershell
+$env:ConnectionStrings__Database = `
+  "Server=localhost,1433;Database=MisoFuelMix;User Id=sa;Password=your-password;TrustServerCertificate=True"
+```
+
+To stop the container without deleting its data:
+```powershell
+docker compose --env-file .\.env stop sqlserver
+```
+
+To stop the container and remove the persisted database volume as well:
+```powershell
+docker compose --env-file .\.env down -v
 ```
 
 ## Create the database
 
-From the repository root, restore the solution and apply the checked-in migration:
+After configuring a SQL Server instance in the included container, restore the solution and apply the checked-in migration:
 
 ```powershell
 dotnet restore .\QueryMISO.slnx
-dotnet ef database update `
-  --project .\MISOConsoleApp\MISOQueryingApp.csproj `
-  --startup-project .\MISOConsoleApp\MISOQueryingApp.csproj
+dotnet ef database update --project .\MISOConsoleApp\MISOQueryingApp.csproj --startup-project .\MISOConsoleApp\MISOQueryingApp.csproj
 ```
 
 The migration creates two related tables:
